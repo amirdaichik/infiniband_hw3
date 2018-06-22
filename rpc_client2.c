@@ -9,6 +9,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include "rpc_common.h"
+//israel test
+
 
 struct ib_resources_t {
     struct ibv_context *context;
@@ -101,45 +103,46 @@ void rpc_call(struct ib_resources_t *ib_resources,
     wr.wr.rdma.remote_addr = ib_resources->server_args_addr; /* we'll "write" to argument buffer, but we're not writing anything really */
     wr.wr.rdma.rkey = ib_resources->server_args_key;
 
-	if (ibv_post_send(ib_resources->qp, &wr, &bad_wr)) {
-		printf("ERROR: ibv_post_send() failed\n");
+
+    /* TODO: post the WQE using ibv_post_send() */
+    if (ibv_post_send(ib_resources->qp, &wr, &bad_wr)) {
+        printf("ERROR: ibv_post_send() failed\n");
         exit(1);
     }
-    /* TODO: post the WQE using ibv_post_send() */
 
     /* TODO: wait for completion of this WQE using ibv_poll_cq() */
     /* wait for CQE on this operation so we know it is completed.
      * make sure ibv_poll_cq() succeeded and cqe is not error*/
-	do {
-		ncqes = ibv_poll_cq(ib_resources->cq, 1, &wc);
+    /* wait for CQE on this operation so we know it is completed */
+    do {
+        ncqes = ibv_poll_cq(ib_resources->cq, 1, &wc);
     } while (ncqes == 0);
-	if (ncqes < 0) {
+    if (ncqes < 0) {
         printf("ERROR: ibv_poll_cq() failed\n");
         exit(1);
     }
-	if (wc.status != IBV_WC_SUCCESS) {
+    if (wc.status != IBV_WC_SUCCESS) {
         printf("ERROR: got CQE with error %d (line %d)\n", wc.status, __LINE__);
         exit(1);
     }
-	
-	
-    assert(wc.opcode == IBV_WC_RDMA_WRITE);
+    assert(wc.opcode == IBV_WC_RDMA_WRITE); /* make sure it's the CQE we're expecting */
+
 
     /* ok now we want to know if server has finished to produce the result */
     if (result) {
         /* TODO: wait for CQE telling us that result is ready in the server using ibv_poll_cq()
          * make sure ibv_poll_cq() succeeded and CQE is not error */
-		do {
-			ncqes = ibv_poll_cq(ib_resources->cq, 1, &wc);
-		} while (ncqes == 0);
-		if (ncqes < 0) {
-			printf("ERROR: ibv_poll_cq() failed\n");
-			exit(1);
-		}
-		if (wc.status != IBV_WC_SUCCESS) {
-			printf("ERROR: got CQE with error %d (line %d)\n", wc.status, __LINE__);
-			exit(1);
-		}
+        do {
+            ncqes = ibv_poll_cq(ib_resources->cq, 1, &wc);
+        } while (ncqes == 0);
+        if (ncqes < 0) {
+            printf("ERROR: ibv_poll_cq() failed\n");
+            exit(1);
+        }
+        if (wc.status != IBV_WC_SUCCESS) {
+            printf("ERROR: got CQE with error %d (line %d)\n", wc.status, __LINE__);
+            exit(1);
+        }
         assert(wc.opcode == IBV_WC_RECV);
         *result_size = wc.imm_data;
 
@@ -157,23 +160,24 @@ void rpc_call(struct ib_resources_t *ib_resources,
         memset(&wr, 0, sizeof(struct ibv_send_wr));
 
         /* gather item: tells where the data should be written, we'll use the memory region parameters here */
-        sg.addr = (uintptr_t)mr->addr;
-        sg.length = mr->length;//result_size
-        sg.lkey = mr->lkey;
+        sg.addr =  (uintptr_t)mr->addr;/* TODO fill this*/
+        sg.length = mr->length;/* TODO fill this */
+        sg.lkey = mr->lkey;/* TODO fill this */
 
         wr.wr_id = wr_id++;
         wr.sg_list = &sg;
         wr.num_sge = 1;
-        wr.opcode = IBV_WR_RDMA_READ;/* TODO fill this */
+        wr.opcode = IBV_WR_RDMA_READ ;/* TODO fill this */
         wr.send_flags = IBV_SEND_SIGNALED;
-        wr.wr.rdma.remote_addr = ib_resources->server_result_addr/*TODO complete*/;
-        wr.wr.rdma.rkey = ib_resources->server_result_key/*TODO complete*/;
+        wr.wr.rdma.remote_addr = ib_resources->server_result_addr;/*TODO complete*/;
+        wr.wr.rdma.rkey = ib_resources->server_result_key;/*TODO complete*/;
 
         /* TODO post the WQE for execution using ibv_post_send() */
-		if (ibv_post_send(ib_resources->qp, &wr, &bad_wr)) {
-			printf("ERROR: ibv_post_send() failed\n");
-			exit(1);
-		}
+        if (ibv_post_send(ib_resources->qp, &wr, &bad_wr)) {
+            printf("ERROR: ibv_post_send() failed\n");
+            exit(1);
+        }
+
         /* wait for CQE on this operation so we know it is completed */
         do {
             ncqes = ibv_poll_cq(ib_resources->cq, 1, &wc);
@@ -409,6 +413,7 @@ void teardown_connection(struct ib_resources_t *ib_resources) {
     ibv_destroy_cq(ib_resources->cq);
     ibv_dealloc_pd(ib_resources->pd);
     ibv_close_device(ib_resources->context);
+    free(ib_resources);
 }
 
 int main(int argc, char *argv[]) {
